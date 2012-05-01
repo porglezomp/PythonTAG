@@ -12,12 +12,12 @@ class Editor:
 	def __init__(self, root):
 		self.play = True
 		self.root = root
-		self.editing = False
 		self.connecting = False
 		self.areas = []
 		self.tool = Tool(self)
 		self.selection = None
 		self.init_GUI()
+		self.player = Player()
 		
 	def init_GUI(self):
 		self.root.geometry(str(900) + "x" + str(600))
@@ -54,46 +54,66 @@ class Editor:
 	
 	def save(self):
 		filename = string.split(tkFileDialog.asksaveasfilename(title = "Save Adventure:", parent = self.root), ".")[0]
+		saveareas = []
+		for item in self.areas:
+			saveareas.append(Box(item.parent, item.x, item.y, width = item.width, height = item.height,
+								forsave = True, area = item.area))
+		
+		savestrings = []
+		for savestring in World.strings:
+			savestrings.append(String(savestring.parent, savestring.a, savestring.b, forsave = True))
+		
 		if len(filename) > 0:
-			World.save([self.player, self.areas], filename  + ".ta")
+			print "saving..."
+			World.save([self.player, saveareas], filename  + ".ta")
+			#World.save([self.player, saveareas, savestrings], filename  + ".ta")
 			return True
 	
 	def load(self):
 		filename = tkFileDialog.askopenfilename(title = "Load Adventure:", parent = self.root)
 		data = World.load(filename)
 		self.player = data[0]
-		self.areas = data[1]
-			
-	def edit_area(self, area_num):
-		if (self.editing == False) and (self.editing != "set_player"):
-			self.editing = area_num
-			self.areaEditor = Toplevel()
-			self.areaEditor.protocol("WM_DELETE_WINDOW", self.done_editing_area)
-			self.areaEditor.title("Area Editor for #" + str(area_num))
-			self.title = Entry(self.areaEditor, width = 52)
-			self.title.grid(row = 0, column = 0, columnspan = 5, sticky = W)
-			self.describe = Text(self.areaEditor, relief = SUNKEN, width = 52, height = 6)
-			self.describe.grid(row = 1, column = 0, rowspan = 5, columnspan = 5, sticky = W)
-			self.donebutton = Button(self.areaEditor, text = "Edit Connections", command = self.edit_connections).grid(row = 5, column = 6, sticky = W)
-			self.donebutton = Button(self.areaEditor, text = "Done", command = self.done_editing_area).grid(row = 6, column = 6, sticky = W)
-			self.title.insert(END, self.areas[area_num].name)
-			self.describe.insert(END, self.areas[area_num].description)	
+		self.areas = []
+		for item in data[1]:
+			self.areas.append(Box(self.canvas, item.x, item.y, width = item.width,
+								height = item.height, area = item.area))
 		
-		elif self.editing == "set_player":
-			self.player.area = area_num
-			self.editing = False
+		if data[2]:
+			for string in data[2]:
+				String(self.canvas, string.a, string.b)
 		
-		else:
-			tkMessageBox.showwarning("Hey!", "You are already editing area #" + str(self.editing) + "!")
+		
+		#old areaedit code
+# 			if (self.editing == False) and (self.editing != "set_player"):
+# 			self.editing = area_num
+# 			self.areaEditor = Toplevel()
+# 			self.areaEditor.protocol("WM_DELETE_WINDOW", self.done_editing_area)
+# 			self.areaEditor.title("Area Editor for #" + str(area_num))
+# 			self.title = Entry(self.areaEditor, width = 52)
+# 			self.title.grid(row = 0, column = 0, columnspan = 5, sticky = W)
+# 			self.describe = Text(self.areaEditor, relief = SUNKEN, width = 52, height = 6)
+# 			self.describe.grid(row = 1, column = 0, rowspan = 5, columnspan = 5, sticky = W)
+# 			self.donebutton = Button(self.areaEditor, text = "Edit Connections", command = self.edit_connections).grid(row = 5, column = 6, sticky = W)
+# 			self.donebutton = Button(self.areaEditor, text = "Done", command = self.done_editing_area).grid(row = 6, column = 6, sticky = W)
+# 			self.title.insert(END, self.areas[area_num].name)
+# 			self.describe.insert(END, self.areas[area_num].description)	
+# 		
+# 		elif self.editing == "set_player":
+# 			self.player.area = area_num
+# 			self.editing = False
+# 		
+# 		else:
+# 			tkMessageBox.showwarning("Hey!", "You are already editing area #" + str(self.editing) + "!")
 
-	def edit_area2(self):
-		"bloo"
+	def edit_area(self):
+		self.title.delete(0, END)
+		self.description.delete("0.0", END)
+		self.title.insert(END, self.areas[self.selection].area.name)
+		self.description.insert(END, self.areas[self.selection].area.description)
 		
 	def done_editing_area(self):
-		self.areas[self.editing].set_name(string.rstrip(self.title.get()))
-		self.areas[self.editing].description = string.rstrip(self.describe.get(1.0, END))
-		self.areaEditor.destroy()
-		self.editing = False
+		self.areas[self.selection].area.set_name(string.rstrip(self.title.get()))
+ 		self.areas[self.selection].area.description = string.rstrip(self.description.get(1.0, END))
 	
 	def edit_connections(self):
 		if self.connecting == False:
@@ -174,38 +194,46 @@ class Editor:
 			if self.selection != None:
 				if self.selection != index:
 					if self.areas[self.selection].selected:
-						self.areas[self.selection].toggle_select()
+						self.done_editing_area()
+						self.areas[self.selection].deselect()
 				
 			if index != None:
 				self.selection = index
-				self.areas[index].toggle_select()
+				if self.areas[index].selected:
+					self.done_editing_area()
+					self.areas[index].deselect()
+				else:
+					self.areas[index].select()
+					self.edit_area()
 		elif state == True:	
 			if self.selection != index:
-				self.areas[self.selection].selected = False
+				self.areas[self.selection].deselect()
 				self.selection = index
-				self.areas[index].selected = True
+				self.areas[index].select()
 		else:
 			if self.selection == index:
-				self.areas[index].selected = False
+				self.areas[index].deselect()
 				self.selection = None
-				
-		if self.selection != None:
-			print "EDIT"#self.edit_selected()
 			
 
 class Box:
 
-	def __init__(self, parent, x, y, width = 75, height = 75):
-		self.parent = parent
+	def __init__(self, parent, x, y, width = 75, height = 75, forsave = False, area = None):
+		self.parent = None
 		self.x = x
 		self.y = y
 		self.width = width
 		self.height = height
 		self.border = 5
-		self.create()
 		self.selected = False
 		self.connections = []
-		
+		self.area = area
+		if area == None:
+			self.area = Area()
+		if not forsave:
+			self.parent = parent
+			self.create()
+	
 	def create(self):
 		hw = self.width/2
 		hh = self.height/2
@@ -231,31 +259,32 @@ class Box:
 		
 		return False
 		
-	def toggle_select(self):
-		if self.selected:
-			self.parent.itemconfig(self.outline, fill = "white")
-			self.selected = False
-		
-		else:
-			self.parent.itemconfig(self.outline, fill = "yellow")
-			self.selected = True
+	def select(self):
+		self.parent.itemconfig(self.outline, fill = "yellow")
+		self.selected = True
+			
+	def deselect(self):
+		self.parent.itemconfig(self.outline, fill = "white")
+		self.selected = False
 			
 	def add_connection(self, direction, string, object):
 		self.connections.append([direction, string, object])
 		
-
-
 class String:
 	
-	def __init__(self, parent, box_a, box_b):
-		self.a = box_a
-		self.b = box_b
-		self.parent = parent
-		self.line = self.parent.create_line(self.a.x, self.a.y, self.b.x, self.b.y, width = 5, fill = "white")
-		self.parent.tag_lower(self.line)
-		self.update()
-		self.a.add_connection("to_rome", self, self.b)
-		self.b.add_connection("to_rome", self, self.a)
+	def __init__(self, parent, box_a, box_b, forsave = False):
+		self.parent = None
+		if not forsave:
+			print "making stuff!"
+			self.a = box_a
+			self.b = box_b
+			self.a.add_connection("to_rome", self, self.b)
+			self.b.add_connection("to_rome", self, self.a)
+			World.strings.append(self)	
+			self.parent = parent
+			self.line = self.parent.create_line(self.a.x, self.a.y, self.b.x, self.b.y, width = 5, fill = "white")
+			self.parent.tag_lower(self.line)
+			self.update()
 		
 	def update(self):
 		self.parent.coords(self.line, self.a.x, self.a.y, self.b.x, self.b.y)

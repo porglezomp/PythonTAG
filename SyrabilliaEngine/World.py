@@ -3,6 +3,7 @@ import cPickle
 
 class World:
 	play = True
+	strings = []
 	
 	@classmethod	
 	def load(world, filename):
@@ -10,7 +11,9 @@ class World:
 			tobeloaded = open(filename, 'r')
 			data = cPickle.load(tobeloaded)
 			world.player = data[0]
-			world.areas = data[1]
+			world.areas = []
+			for item in data[1]:
+				world.areas.append(item.area)
 			return data
 		return False
 		
